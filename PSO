@@ -1,0 +1,170 @@
+# Import modules
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.datasets import load_iris
+
+import pandas as pd
+import pyswarms as ps
+from pyswarms.utils.functions import single_obj as fx
+
+pip install pyswarms
+
+%load_ext autoreload
+%autoreload 2
+
+file = pd.read_csv("preprocess.csv")
+
+file = file.dropna()
+
+#make disease state numeric
+file.loc[:,"num_class"] = file.loc[:,"Class"]
+file.loc[file["num_class"] == 'TNBC', "num_class"] = 1
+file.loc[file["num_class"] == 'Non-TNBC', "num_class"] = 2
+#class_missing = file.loc[:,"num_class"].isnull()
+#file.loc[ class_missing , "num_class"] = 3
+
+#convert to csv
+file.to_csv("preprocess2.csv", index=False)
+
+file = pd.read_csv("preprocess2.csv", header=None)
+
+#FORMAT DATA
+rows = file.shape[0]
+cols = file.shape[1] -2
+#new = file.loc[1:rows, 2:cols] # REAL DATA
+new = file.loc[1:rows, 2:5] #trial data
+a=np.array(new, dtype=np.float)
+X=np.array(a, dtype=np.int64)
+
+#FORMAT TARGET
+col = file.shape[1] -1
+a = list(file[col])
+b = a[1:]
+y=np.array(b, dtype=np.int64)
+
+print(X.shape)
+print(y.shape)
+
+n_inputs = X.shape[1]
+n_hidden = 12
+n_classes = X.shape[1] - 1
+
+num_samples = X.shape[0]
+
+
+#make Roll-back the weights and biases
+parameter1 = int(n_inputs* n_hidden)
+parameter2 = int(parameter1 + n_hidden)
+parameter3 = int(parameter2 + (n_hidden*n_classes))
+parameter4 = int(parameter3 + n_classes)
+
+print('n_inputs',n_inputs)
+print('n_hidden',n_hidden)
+print('n_classes', n_classes)
+print('num_samples', num_samples)
+print('parameter4', parameter4)
+print('parameter3', parameter3)
+print('parameter2', parameter2)
+print('parameter1', parameter1)
+
+def logits_function(p):
+    """ Calculate roll-back the weights and biases
+
+    Inputs
+    ------
+    p: np.ndarray
+
+    Returns
+    -------
+    numpy.ndarray of logits for layer 2
+
+    """
+    # Roll-back the weights and biases
+    W1 = p[0:parameter1].reshape((n_inputs,n_hidden))
+    b1 = p[parameter1:parameter2].reshape((n_hidden,))
+    W2 = p[parameter2:parameter3].reshape((n_hidden,n_classes))
+    b2 = p[parameter3:parameter4].reshape((n_classes,))
+
+    # Perform forward propagation
+    z1 = X.dot(W1) + b1  # Pre-activation in Layer 1
+    a1 = np.tanh(z1)     # Activation in Layer 1
+    logits = a1.dot(W2) + b2 # Pre-activation in Layer 2
+    return logits          # Logits for Layer 2
+
+
+# Forward propagation
+def forward_prop(params):
+    """Forward propagation as objective function
+
+    This computes for the forward propagation of the neural network, as
+    well as the loss.
+
+    Inputs
+    ------
+    params: np.ndarray
+        The dimensions should include an unrolled version of the
+        weights and biases.
+
+    Returns
+    -------
+    float
+        The computed negative log-likelihood loss given the parameters
+    """
+
+    logits = logits_function(params)
+
+    # Compute for the softmax of the logits
+    exp_scores = np.exp(logits)
+    probs = exp_scores / np.sum(exp_scores, axis=1, keepdims=True)
+
+    # Compute for the negative log likelihood
+
+    corect_logprobs = -np.log(probs[range(num_samples), y])
+    loss = np.sum(corect_logprobs) / num_samples
+
+    return loss
+def f(x):
+    """forward_prop in the
+    whole swarm
+
+    Inputs
+    ------
+    x: numpy.ndarray of shape (n_particles, dimensions)
+        The swarm that will perform the search
+
+    Returns
+    -------
+    numpy.ndarray of shape (n_particles, )
+        The computed loss for each particle
+    """
+    n_particles = x.shape[0]
+    j = [forward_prop(x[i]) for i in range(n_particles)]
+    return np.array(j)
+
+# Initialize swarm
+options = {'c1': 1.5, 'c2': 1.5, 'w':0.9}
+
+# Call instance of PSO
+dimensions = (n_inputs * n_hidden) + (n_hidden * n_classes) + n_hidden + n_classes
+optimizer = ps.single.GlobalBestPSO(n_particles=100, dimensions=dimensions, options=options)
+
+# Perform optimization
+cost, pos = optimizer.optimize(f, iters=100)
+
+def predict(pos):
+    """
+    Use the trained weights to perform class predictions.
+
+    Inputs
+    ------
+    pos: numpy.ndarray
+        Position matrix found by the swarm. Will be rolled
+        into weights and biases.
+    """
+    logits = logits_function(pos)
+    y_pred = np.argmax(logits, axis=1)
+    return y_pred
+    
+#predict accuracy
+
+(predict(pos) == y).mean()
