@@ -12,3 +12,6 @@ This is a method of feature extraction not feature selection, therefore the purp
 The validation statistics, with 500 epochs and 250 batch size, for both models are as follows:
 SAE = 0.0641 loss, 79.45% accuracy
 SDAE = 0.0592 loss, 80.82% accuracy
+
+
+The 8000 architecture is 20531 > 15000 > 10000 > 8000 for the encoder piece. The accuracy for both was near 0. 
