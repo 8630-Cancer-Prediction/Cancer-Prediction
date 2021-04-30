@@ -1,1 +1,5 @@
 Venus Pagidimarri
+This folder has two files
+Model_Venus is a concise python notebook which runs 
+MLP, Random Forest and Naive Bayes models with five fold cross validation and gives results on raw data, PSO data and normalized data.
+Model_Venus_SAE runs all three models as well but with SAE and SDAE data
